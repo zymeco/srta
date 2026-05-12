@@ -12,7 +12,7 @@ WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    DATA_PROVIDER=pykrx \
+    DATA_PROVIDER=real \
     AI_PROVIDER_DEFAULT=auto
 
 # 시스템 의존성 (pykrx -> lxml 등 빌드 필요)
