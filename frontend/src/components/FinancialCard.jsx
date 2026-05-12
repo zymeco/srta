@@ -24,8 +24,11 @@ export default function FinancialCard({ data }) {
           ]} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
             <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
             <XAxis dataKey="name" stroke="#9ca3af" fontSize={11} />
-            <YAxis stroke="#9ca3af" fontSize={11} />
-            <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #334155', borderRadius: 8 }} />
+            <YAxis stroke="#9ca3af" fontSize={11} width={44} />
+            <Tooltip
+              contentStyle={{ background: '#1f2937', border: '1px solid #334155', borderRadius: 8 }}
+              formatter={(v) => Number(v).toLocaleString('ko-KR')}
+            />
             <Bar dataKey="value" fill="#34d399" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

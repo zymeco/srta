@@ -19,8 +19,14 @@ export default function GrowthCard({ data, growthTrend }) {
             <BarChart data={growthTrend} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
               <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
               <XAxis dataKey="year" stroke="#9ca3af" fontSize={11} />
-              <YAxis stroke="#9ca3af" fontSize={11} />
-              <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #334155', borderRadius: 8 }} />
+              <YAxis
+                stroke="#9ca3af" fontSize={11} width={56}
+                tickFormatter={(v) => Number(v).toLocaleString('ko-KR')}
+              />
+              <Tooltip
+                contentStyle={{ background: '#1f2937', border: '1px solid #334155', borderRadius: 8 }}
+                formatter={(v) => Number(v).toLocaleString('ko-KR')}
+              />
               <Bar dataKey="value" fill="#60a5fa" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

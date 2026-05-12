@@ -28,8 +28,14 @@ export default function SupplyChart({ supply, detail }) {
           <LineChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
             <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
             <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} hide />
-            <YAxis stroke="#9ca3af" fontSize={10} />
-            <Tooltip contentStyle={{ background: '#1f2937', border: '1px solid #334155', borderRadius: 8 }} />
+            <YAxis
+              stroke="#9ca3af" fontSize={10} width={56}
+              tickFormatter={(v) => Number(v).toLocaleString('ko-KR')}
+            />
+            <Tooltip
+              contentStyle={{ background: '#1f2937', border: '1px solid #334155', borderRadius: 8 }}
+              formatter={(v) => Number(v).toLocaleString('ko-KR')}
+            />
             <Legend />
             <Line dataKey="외국인" stroke="#60a5fa" dot={false} />
             <Line dataKey="기관" stroke="#a78bfa" dot={false} />

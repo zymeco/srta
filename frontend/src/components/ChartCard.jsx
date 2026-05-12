@@ -18,7 +18,14 @@ export default function ChartCard({ ma }) {
             </defs>
             <CartesianGrid stroke="rgba(148,163,184,0.08)" vertical={false} />
             <XAxis dataKey="date" stroke="#64748b" fontSize={10} hide />
-            <YAxis stroke="#64748b" fontSize={10} domain={['auto', 'auto']} width={56} />
+            <YAxis
+              stroke="#64748b" fontSize={10} domain={['auto', 'auto']} width={64}
+              tickFormatter={(v) => {
+                const n = Number(v)
+                if (Math.abs(n) >= 100000) return (n / 10000).toFixed(0) + '만'
+                return n.toLocaleString('ko-KR')
+              }}
+            />
             <Tooltip
               contentStyle={{
                 background: 'rgba(15,19,28,0.95)',
@@ -27,6 +34,7 @@ export default function ChartCard({ ma }) {
                 backdropFilter: 'blur(8px)',
               }}
               labelStyle={{ color: '#cbd5e1' }}
+              formatter={(v) => Number(v).toLocaleString('ko-KR')}
             />
             <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8' }} />
             <Area type="monotone" dataKey="close" stroke="#c7d2fe" fill="url(#priceFill)" strokeWidth={2} name="종가" />

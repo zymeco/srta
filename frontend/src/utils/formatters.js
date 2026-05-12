@@ -20,7 +20,10 @@ export function formatPct(v) {
 
 export function formatNumber(v, digits = 1) {
   if (v == null || isNaN(v)) return '-';
-  return Number(v).toFixed(digits);
+  return Number(v).toLocaleString('ko-KR', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 }
 
 export function todayStr() {
