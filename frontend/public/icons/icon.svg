@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0b0f1a"/>
+  <path d="M80 360 L180 240 L260 300 L360 160 L440 220" stroke="#6ee7b7" stroke-width="24" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="440" cy="220" r="20" fill="#6ee7b7"/>
+  <text x="256" y="450" text-anchor="middle" fill="#fff" font-size="56" font-family="sans-serif" font-weight="bold">SRTA</text>
+</svg>

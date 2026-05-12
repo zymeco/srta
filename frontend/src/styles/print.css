@@ -1,0 +1,67 @@
+/* PDF 캡처/인쇄용 스타일.
+   html2canvas 시점에 적용되는 background 등이 깨지지 않도록 정리. */
+
+@media print {
+  .bottom-nav, .pdf-export-btn, .no-print { display: none !important; }
+  body { background: #fff !important; color: #111 !important; }
+}
+
+/* PDF용 밝은 배경 리포트 영역 */
+#pdf-report-area {
+  background: #ffffff;
+  color: #111827;
+  padding: 24px;
+  border-radius: 12px;
+}
+#pdf-report-area h1, #pdf-report-area h2, #pdf-report-area h3 {
+  color: #111827;
+}
+#pdf-report-area .pdf-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+  page-break-inside: avoid;
+}
+#pdf-report-area .pdf-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 13px;
+}
+#pdf-report-area .pdf-row .k { color: #6b7280; }
+#pdf-report-area .pdf-row .v { color: #111827; font-weight: 700; }
+#pdf-report-area .pdf-banner {
+  padding: 14px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+#pdf-report-area .pdf-banner.lv3,
+#pdf-report-area .pdf-banner.lv4 {
+  background: #fee2e2; color: #7f1d1d; border: 2px solid #b91c1c;
+}
+#pdf-report-area .pdf-banner.lv2 { background: #ffedd5; color: #7c2d12; border: 1px solid #c2410c; }
+#pdf-report-area .pdf-banner.lv1 { background: #fef3c7; color: #78350f; border: 1px solid #b45309; }
+
+#pdf-report-area .pdf-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+#pdf-report-area .pdf-sub { color: #6b7280; font-size: 12px; margin-bottom: 16px; }
+#pdf-report-area ul { margin: 4px 0; padding-left: 18px; }
+#pdf-report-area li { font-size: 13px; line-height: 1.5; }
+
+#pdf-report-area .pdf-score {
+  font-size: 40px;
+  font-weight: 900;
+}
+#pdf-report-area .pdf-disclaimer {
+  margin-top: 18px;
+  padding: 10px;
+  font-size: 11px;
+  color: #6b7280;
+  border-top: 1px dashed #d1d5db;
+}

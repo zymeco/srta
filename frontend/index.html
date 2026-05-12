@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+
+    <title>Stock Real Trader Analyzer</title>
+    <meta name="description" content="한국 주식 종목 종합 분석 - 재무·차트·수급·리스크·AI 해설을 한 번에. 투자 판단 보조 도구." />
+    <meta name="keywords" content="주식 분석, 종목 분석, KOSPI, KOSDAQ, AI 주식, 한국 주식, 종목 추천, 매수가, 손절가" />
+    <meta name="author" content="SRTA" />
+
+    <!-- PWA / Theme -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0c1018" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/icons/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SRTA" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- Android Chrome -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="SRTA" />
+
+    <!-- Open Graph (소셜 공유) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Stock Real Trader Analyzer" />
+    <meta property="og:description" content="한국 주식 종목 종합 분석 - 재무·차트·수급·리스크·AI 해설" />
+    <meta property="og:image" content="/icons/icon-512.png" />
+    <meta property="og:locale" content="ko_KR" />
+
+    <!-- Prevent zoom on input focus (mobile) -->
+    <meta name="format-detection" content="telephone=no" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

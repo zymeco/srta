@@ -1,0 +1,31 @@
+# Render.com 배포 청사진.
+# 사용법:
+#   1) 이 저장소를 GitHub에 push
+#   2) Render.com 가입 → "New +" → "Blueprint" → 저장소 선택
+#   3) 환경변수 ANTHROPIC_API_KEY / GEMINI_API_KEY 등록 (선택)
+#   4) Deploy 후 발급된 https://xxx.onrender.com 주소를
+#      갤럭시 Chrome에서 열고 "홈 화면에 추가"
+
+services:
+  - type: web
+    name: stock-real-trader-analyzer
+    env: docker
+    plan: free
+    region: singapore
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: DATA_PROVIDER
+        value: real
+      - key: AI_PROVIDER_DEFAULT
+        value: auto
+      - key: ANTHROPIC_API_KEY
+        sync: false   # Render 콘솔에서 직접 입력
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DART_API_KEY
+        sync: false
+      - key: NAVER_CLIENT_ID
+        sync: false
+      - key: NAVER_CLIENT_SECRET
+        sync: false
