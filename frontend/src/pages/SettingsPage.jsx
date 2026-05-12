@@ -7,9 +7,22 @@ function KeyInput({ name, label, desc, link, type = 'password', value, onSave, o
   const [v, setV] = useState(value || '')
   const [editing, setEditing] = useState(!value)
   const [saved, setSaved] = useState('')
+  const [err, setErr] = useState('')
+
+  const invalid = value && !userKeys.isValid(value)
 
   function save() {
-    onSave(v.trim())
+    setErr('')
+    const cleaned = v.trim()
+    if (!cleaned) {
+      setErr('키 값을 입력해주세요.')
+      return
+    }
+    if (!userKeys.isValid(cleaned)) {
+      setErr('한글 또는 특수문자가 섞여 있습니다. 영문/숫자/기호만 포함된 키를 입력해주세요.')
+      return
+    }
+    onSave(cleaned)
     setEditing(false)
     setSaved('저장됨')
     setTimeout(() => setSaved(''), 1500)
@@ -18,6 +31,7 @@ function KeyInput({ name, label, desc, link, type = 'password', value, onSave, o
     onClear()
     setV('')
     setEditing(true)
+    setErr('')
   }
 
   return (
@@ -31,7 +45,8 @@ function KeyInput({ name, label, desc, link, type = 'password', value, onSave, o
       <div className="row space" style={{ marginBottom: 6 }}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>{label}</div>
         <div>
-          {value && !editing && <span className="tag green">✓ 등록됨</span>}
+          {invalid && <span className="tag red">⚠ 잘못된 값</span>}
+          {value && !editing && !invalid && <span className="tag green">✓ 등록됨</span>}
           {!value && <span className="tag" style={{ opacity: 0.6 }}>미등록</span>}
           {saved && <span className="tag green" style={{ marginLeft: 4 }}>{saved}</span>}
         </div>
@@ -72,7 +87,13 @@ function KeyInput({ name, label, desc, link, type = 'password', value, onSave, o
             spellCheck={false}
           />
           <button className="btn primary" onClick={save} disabled={!v.trim()}>저장</button>
-          {value && <button className="btn ghost" onClick={() => { setEditing(false); setV(value); }}>취소</button>}
+          {value && <button className="btn ghost" onClick={() => { setEditing(false); setV(value); setErr(''); }}>취소</button>}
+        </div>
+      )}
+      {err && <div className="error-banner" style={{ marginTop: 8, fontSize: 13 }}>{err}</div>}
+      {invalid && !editing && (
+        <div className="error-banner" style={{ marginTop: 8, fontSize: 13 }}>
+          저장된 키 값이 손상되어 있습니다 (한글/제어문자 포함). 삭제 후 다시 입력하세요.
         </div>
       )}
     </div>

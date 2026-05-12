@@ -122,12 +122,37 @@ def get_ai_comment(analysis: Dict[str, Any], provider: str = "") -> Dict[str, An
             return {"provider": resolved, "comment": "", "error": "AI 응답이 비어 있습니다."}
         return {"provider": resolved, "comment": text, "error": ""}
     except httpx.HTTPStatusError as e:
-        body = ""
+        status = e.response.status_code
         try:
             body = e.response.text[:300]
         except Exception:
-            pass
-        return {"provider": resolved, "comment": "", "error": f"AI API 오류({e.response.status_code}): {body}"}
+            body = ""
+
+        # 사용자 친화적 한국어 메시지
+        if status == 429:
+            if resolved == "gemini":
+                friendly = (
+                    "Gemini API 할당량 또는 지출 한도(Spend Cap)를 초과했습니다.\n"
+                    "→ https://ai.studio/spend 에서 한도 조정\n"
+                    "또는 Claude 키를 등록해 사용하세요."
+                )
+            else:
+                friendly = (
+                    "Claude API 사용량/크레딧을 초과했습니다.\n"
+                    "→ https://console.anthropic.com 에서 결제/한도 확인하세요."
+                )
+        elif status in (401, 403):
+            friendly = f"AI API 키가 유효하지 않습니다({status}). 설정에서 키를 다시 등록하세요."
+        elif status == 400:
+            friendly = f"AI API 요청 형식 오류({status}). 모델 또는 키를 확인하세요."
+        else:
+            friendly = f"AI API 오류({status}): {body[:120]}"
+
+        return {"provider": resolved, "comment": "", "error": friendly}
+    except httpx.ConnectError:
+        return {"provider": resolved, "comment": "", "error": "AI 서버에 연결할 수 없습니다. 네트워크 확인 후 다시 시도하세요."}
+    except httpx.TimeoutException:
+        return {"provider": resolved, "comment": "", "error": "AI 응답이 너무 오래 걸립니다. 잠시 후 다시 시도하세요."}
     except Exception as e:
         return {"provider": resolved, "comment": "", "error": f"AI 호출 실패: {e}"}
 

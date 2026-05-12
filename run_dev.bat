@@ -63,8 +63,18 @@ echo.
 echo [WARN] Port 8000 already in use:
 netstat -ano | findstr ":8000" | findstr "LISTENING"
 echo.
-echo Close the existing server first, then run this again.
-echo.
+echo Auto-killing the old process...
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do (
+  echo Killing PID %%P
+  taskkill /F /PID %%P >nul 2>&1
+)
+timeout /t 2 /nobreak >nul
+netstat -ano | findstr ":8000" | findstr "LISTENING" >nul 2>&1
+if errorlevel 1 (
+  echo [OK] Port 8000 cleared.
+  goto run_server
+)
+echo [ERROR] Could not free port 8000. Please reboot or close the process manually.
 pause
 exit /b 1
 

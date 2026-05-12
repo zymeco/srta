@@ -1,27 +1,22 @@
-// SRTA Service Worker v2 — PWABuilder 권장 패턴
-const VERSION = 'srta-v2';
-const PRECACHE = `${VERSION}-precache`;
+// SRTA Service Worker v3
+// 핵심 정책:
+//  - index.html (네비게이션 요청): network-first  → 새 빌드 즉시 반영
+//  - hash 파일명을 가진 /assets/*: cache-first  → 캐시 안전, 빠른 로딩
+//  - 그 외 정적 자산: stale-while-revalidate
+//  - /api, /health: 캐시 안 함 (항상 라이브)
+
+const VERSION = 'srta-v3';
 const RUNTIME = `${VERSION}-runtime`;
 
-// 앱 셸: 첫 설치 때 캐시
-const PRECACHE_URLS = [
-  '/',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/apple-touch-icon.png',
-];
-
 self.addEventListener('install', (e) => {
+  // 새 SW가 들어오면 즉시 활성화
   self.skipWaiting();
-  e.waitUntil(
-    caches.open(PRECACHE).then((cache) => cache.addAll(PRECACHE_URLS).catch(() => {}))
-  );
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     (async () => {
+      // 이전 버전 캐시 모두 제거
       const keys = await caches.keys();
       await Promise.all(
         keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k))
@@ -31,7 +26,6 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// 메시지로 강제 갱신
 self.addEventListener('message', (e) => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
@@ -42,25 +36,67 @@ self.addEventListener('fetch', (e) => {
 
   const url = new URL(req.url);
 
-  // API/health: 항상 네트워크 우선, 실패 시만 캐시 (분석 결과는 캐시 안 함)
+  // API / health: 캐시 안 함
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/health')) {
-    return; // 기본 fetch
+    return;
   }
 
-  // 같은 출처만 캐싱
+  // 다른 출처: 캐시 안 함
   if (url.origin !== self.location.origin) return;
 
-  // 정적 자산: stale-while-revalidate
+  // 네비게이션 (HTML 문서): network-first
+  const isNavigation =
+    req.mode === 'navigate' ||
+    req.destination === 'document' ||
+    url.pathname === '/' ||
+    url.pathname.startsWith('/index.html');
+
+  if (isNavigation) {
+    e.respondWith(
+      (async () => {
+        try {
+          const fresh = await fetch(req);
+          // 성공하면 캐시 갱신
+          const cache = await caches.open(RUNTIME);
+          cache.put('/', fresh.clone()).catch(() => {});
+          return fresh;
+        } catch (_) {
+          // 오프라인 시 캐시 fallback
+          const cache = await caches.open(RUNTIME);
+          return (await cache.match('/')) || Response.error();
+        }
+      })()
+    );
+    return;
+  }
+
+  // 해시 파일명 자산 (/assets/index-XXXX.js, .css): cache-first
+  if (url.pathname.startsWith('/assets/')) {
+    e.respondWith(
+      (async () => {
+        const cache = await caches.open(RUNTIME);
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        const res = await fetch(req);
+        if (res.status === 200) cache.put(req, res.clone()).catch(() => {});
+        return res;
+      })()
+    );
+    return;
+  }
+
+  // 그 외 정적 자산 (아이콘 등): stale-while-revalidate
   e.respondWith(
-    caches.open(RUNTIME).then(async (cache) => {
+    (async () => {
+      const cache = await caches.open(RUNTIME);
       const cached = await cache.match(req);
-      const fetched = fetch(req)
+      const fetchedPromise = fetch(req)
         .then((res) => {
-          if (res && res.status === 200) cache.put(req, res.clone());
+          if (res.status === 200) cache.put(req, res.clone()).catch(() => {});
           return res;
         })
         .catch(() => cached);
-      return cached || fetched;
-    })
+      return cached || fetchedPromise;
+    })()
   );
 });
