@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.requests import Request
 
 from ..db.database import init_db
-from . import routes_stock, routes_analysis, routes_watchlist, routes_history, routes_report, routes_ai
+from . import routes_stock, routes_analysis, routes_watchlist, routes_history, routes_report, routes_ai, routes_debug
 
 app = FastAPI(title="Stock Real Trader Analyzer", version="1.0.0")
 
@@ -73,6 +73,7 @@ app.include_router(routes_watchlist.router, prefix="/api", tags=["watchlist"])
 app.include_router(routes_history.router, prefix="/api", tags=["history"])
 app.include_router(routes_report.router, prefix="/api", tags=["report"])
 app.include_router(routes_ai.router, prefix="/api", tags=["ai"])
+app.include_router(routes_debug.router, prefix="/api", tags=["debug"])
 
 
 # ----- SPA 정적 서빙 -----

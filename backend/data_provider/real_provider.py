@@ -11,7 +11,7 @@ from typing import Dict, Any, List
 from .base_provider import BaseProvider
 from .pykrx_provider import PykrxProvider
 from .mock_provider import MockProvider
-from . import dart_provider, naver_news_provider, naver_finance_provider
+from . import dart_provider, naver_news_provider, naver_finance_provider, yfinance_provider
 from ..keys.api_keys import has_dart, has_naver
 
 
@@ -23,29 +23,60 @@ class RealProvider(BaseProvider):
     def search(self, query: str) -> List[Dict[str, Any]]:
         return self.pykrx.search(query)
 
-    # ---- 시세: Naver 우선 ----
+    # ---- 시세: Naver > yfinance > pykrx > Mock ----
     def get_stock_basic_info(self, stock_code: str) -> Dict[str, Any]:
-        naver = naver_finance_provider.get_stock_basic_info(stock_code)
-        if naver and naver.get("current_price"):
-            # 시총·시장구분은 pykrx에서 보강 시도
-            try:
-                pk = self.pykrx.get_stock_basic_info(stock_code)
-                # pykrx가 mock 폴백을 안 한 경우만 (정상 응답일 때만) 시총 갱신
-                if pk and pk.get("market_cap") and pk.get("market") in ("KOSPI", "KOSDAQ"):
-                    naver["market_cap"] = pk["market_cap"]
-                    naver["market_cap_type"] = pk["market_cap_type"]
-                    naver["market"] = pk["market"]
-                    naver["sector"] = pk.get("sector") or naver.get("sector", "")
-            except Exception:
-                pass
-            return naver
-        # 폴백
+        # 1순위: 네이버 (한국 IP 환경에서 최적)
+        try:
+            naver = naver_finance_provider.get_stock_basic_info(stock_code)
+            if naver and naver.get("current_price"):
+                self._augment_with_pykrx(naver, stock_code)
+                return naver
+        except Exception as e:
+            print(f"[RealProvider] naver basic 실패: {e}")
+
+        # 2순위: yfinance (해외 IP 환경 대비)
+        try:
+            yf = yfinance_provider.get_stock_basic_info(stock_code)
+            if yf and yf.get("current_price"):
+                self._augment_with_pykrx(yf, stock_code)
+                return yf
+        except Exception as e:
+            print(f"[RealProvider] yfinance basic 실패: {e}")
+
+        # 3순위: pykrx → Mock (이미 pykrx 내부에서 mock 폴백)
         return self.pykrx.get_stock_basic_info(stock_code)
 
+    def _augment_with_pykrx(self, base: Dict[str, Any], stock_code: str):
+        """시총/시장구분/섹터를 pykrx로 보강 (실패 무시)."""
+        try:
+            pk = self.pykrx.get_stock_basic_info(stock_code)
+            if pk and pk.get("market_cap") and pk.get("market") in ("KOSPI", "KOSDAQ"):
+                base["market_cap"] = pk["market_cap"]
+                base["market_cap_type"] = pk["market_cap_type"]
+                base["market"] = pk["market"]
+                if not base.get("sector"):
+                    base["sector"] = pk.get("sector", "")
+        except Exception:
+            pass
+
     def get_price_history(self, stock_code: str) -> Dict[str, Any]:
-        naver = naver_finance_provider.get_price_history(stock_code)
-        if naver:
-            return naver
+        # 1순위: 네이버
+        try:
+            naver = naver_finance_provider.get_price_history(stock_code)
+            if naver and len(naver.get("prices", [])) >= 30:
+                return naver
+        except Exception as e:
+            print(f"[RealProvider] naver history 실패: {e}")
+
+        # 2순위: yfinance
+        try:
+            yf = yfinance_provider.get_price_history(stock_code)
+            if yf and len(yf.get("prices", [])) >= 30:
+                return yf
+        except Exception as e:
+            print(f"[RealProvider] yfinance history 실패: {e}")
+
+        # 3순위: pykrx → Mock
         return self.pykrx.get_price_history(stock_code)
 
     # ---- 재무 ----
