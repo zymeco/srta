@@ -7,7 +7,7 @@ import httpx
 from datetime import datetime
 from typing import Dict, Any, List
 
-from ..keys.api_keys import NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, has_naver
+from ..keys.api_keys import get_key, has_naver
 from ..utils.cache import memoize
 
 
@@ -75,8 +75,8 @@ def get_news(stock_name: str, stock_code: str = "", display: int = 15) -> Dict[s
                 "sort": "date",
             }
             headers = {
-                "X-Naver-Client-Id": NAVER_CLIENT_ID,
-                "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
+                "X-Naver-Client-Id": get_key("NAVER_CLIENT_ID"),
+                "X-Naver-Client-Secret": get_key("NAVER_CLIENT_SECRET"),
             }
             with httpx.Client(timeout=10.0) as c:
                 r = c.get("https://openapi.naver.com/v1/search/news.json",

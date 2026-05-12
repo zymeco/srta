@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional, List
 
 import httpx
 
-from ..keys.api_keys import DART_API_KEY, has_dart
+from ..keys.api_keys import get_key, has_dart
 from ..utils.cache import memoize
 
 
@@ -31,7 +31,7 @@ def _load_corp_code_map() -> Dict[str, str]:
     def factory():
         try:
             if not os.path.exists(CORP_CODE_PATH):
-                url = f"{BASE}/corpCode.xml?crtfc_key={DART_API_KEY}"
+                url = f"{BASE}/corpCode.xml?crtfc_key={get_key("DART_API_KEY")}"
                 with httpx.Client(timeout=30.0) as c:
                     r = c.get(url)
                     r.raise_for_status()
@@ -61,7 +61,7 @@ def _corp_code_for(stock_code: str) -> str:
 
 
 def _fetch_json(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    params = {**params, "crtfc_key": DART_API_KEY}
+    params = {**params, "crtfc_key": get_key("DART_API_KEY")}
     with httpx.Client(timeout=20.0) as c:
         r = c.get(f"{BASE}/{path}", params=params)
         r.raise_for_status()

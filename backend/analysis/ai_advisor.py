@@ -7,8 +7,9 @@ import httpx
 from typing import Dict, Any, Optional
 
 from ..keys.api_keys import (
-    GEMINI_API_KEY,
-    ANTHROPIC_API_KEY,
+    get_key,
+    has_claude,
+    has_gemini,
     resolve_ai_provider,
 )
 
@@ -62,7 +63,7 @@ def _build_user_prompt(analysis: Dict[str, Any]) -> str:
 def _call_claude(prompt: str, timeout: float = 30.0) -> str:
     url = "https://api.anthropic.com/v1/messages"
     headers = {
-        "x-api-key": ANTHROPIC_API_KEY,
+        "x-api-key": get_key("ANTHROPIC_API_KEY"),
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
@@ -83,7 +84,7 @@ def _call_claude(prompt: str, timeout: float = 30.0) -> str:
 
 def _call_gemini(prompt: str, timeout: float = 30.0) -> str:
     model = "gemini-2.5-flash"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={get_key('GEMINI_API_KEY')}"
     body = {
         "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -133,6 +134,6 @@ def get_ai_comment(analysis: Dict[str, Any], provider: str = "") -> Dict[str, An
 
 def available_providers() -> Dict[str, bool]:
     return {
-        "claude": bool(ANTHROPIC_API_KEY),
-        "gemini": bool(GEMINI_API_KEY),
+        "claude": has_claude(),
+        "gemini": has_gemini(),
     }

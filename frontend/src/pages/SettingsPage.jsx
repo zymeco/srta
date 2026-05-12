@@ -1,6 +1,83 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api } from '../api/client.js'
+import { api, userKeys } from '../api/client.js'
+
+// 키 등록 카드 (재사용)
+function KeyInput({ name, label, desc, link, type = 'password', value, onSave, onClear }) {
+  const [v, setV] = useState(value || '')
+  const [editing, setEditing] = useState(!value)
+  const [saved, setSaved] = useState('')
+
+  function save() {
+    onSave(v.trim())
+    setEditing(false)
+    setSaved('저장됨')
+    setTimeout(() => setSaved(''), 1500)
+  }
+  function clear() {
+    onClear()
+    setV('')
+    setEditing(true)
+  }
+
+  return (
+    <div style={{
+      padding: 14,
+      borderRadius: 12,
+      background: 'rgba(15,19,28,0.45)',
+      border: '1px solid var(--border)',
+      marginBottom: 10,
+    }}>
+      <div className="row space" style={{ marginBottom: 6 }}>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>{label}</div>
+        <div>
+          {value && !editing && <span className="tag green">✓ 등록됨</span>}
+          {!value && <span className="tag" style={{ opacity: 0.6 }}>미등록</span>}
+          {saved && <span className="tag green" style={{ marginLeft: 4 }}>{saved}</span>}
+        </div>
+      </div>
+      <div className="subtle" style={{ fontSize: 12, marginBottom: 8 }}>
+        {desc}
+        {link && (
+          <> · <a href={link} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', textDecoration: 'underline' }}>키 발급받기 ↗</a></>
+        )}
+      </div>
+
+      {!editing && value ? (
+        <div className="row" style={{ gap: 8 }}>
+          <div style={{
+            flex: 1,
+            padding: '10px 14px',
+            background: 'rgba(0,0,0,0.25)',
+            borderRadius: 10,
+            fontFamily: 'monospace',
+            fontSize: 13,
+            letterSpacing: '0.05em',
+          }}>
+            {userKeys.mask(value)}
+          </div>
+          <button className="btn ghost" onClick={() => setEditing(true)}>변경</button>
+          <button className="btn ghost" onClick={clear} style={{ color: 'var(--red)' }}>삭제</button>
+        </div>
+      ) : (
+        <div className="row" style={{ gap: 8 }}>
+          <input
+            type={type}
+            className="input"
+            value={v}
+            onChange={(e) => setV(e.target.value)}
+            placeholder={`${label} 입력`}
+            style={{ flex: 1, height: 44 }}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button className="btn primary" onClick={save} disabled={!v.trim()}>저장</button>
+          {value && <button className="btn ghost" onClick={() => { setEditing(false); setV(value); }}>취소</button>}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const [health, setHealth] = useState('확인 중…')
@@ -8,15 +85,40 @@ export default function SettingsPage() {
   const [provider, setProvider] = useState(localStorage.getItem('ai_provider') || 'auto')
   const [dataStatus, setDataStatus] = useState({ data_provider: '-', dart: false, naver_news: false })
 
-  useEffect(() => {
-    api.health().then(() => setHealth('정상')).catch(() => setHealth('오류 (백엔드 미실행 가능성)'))
+  // 로컬 키 상태
+  const [keys, setKeys] = useState({
+    anthropic: userKeys.get('anthropic'),
+    gemini: userKeys.get('gemini'),
+    dart: userKeys.get('dart'),
+    naver_id: userKeys.get('naver_id'),
+    naver_secret: userKeys.get('naver_secret'),
+  })
+
+  function refreshStatus() {
     api.aiProviders().then(d => setProviders(d.available || {})).catch(() => {})
     api.dataStatus().then(setDataStatus).catch(() => {})
+  }
+
+  useEffect(() => {
+    api.health().then(() => setHealth('정상')).catch(() => setHealth('오류'))
+    refreshStatus()
   }, [])
 
   function changeProvider(v) {
     setProvider(v)
     localStorage.setItem('ai_provider', v)
+  }
+
+  function saveKey(name, value) {
+    userKeys.set(name, value)
+    setKeys({ ...keys, [name]: value })
+    setTimeout(refreshStatus, 200)
+  }
+
+  function clearKey(name) {
+    userKeys.set(name, '')
+    setKeys({ ...keys, [name]: '' })
+    setTimeout(refreshStatus, 200)
   }
 
   return (
@@ -26,6 +128,65 @@ export default function SettingsPage() {
       <div className="card">
         <h3>서버 상태</h3>
         <div className="kv"><span className="k">/health</span><span className="v">{health}</span></div>
+        <div className="kv"><span className="k">데이터 모드</span><span className="v">{dataStatus.data_provider}</span></div>
+      </div>
+
+      <div className="card">
+        <h3>🔑 내 API 키 등록</h3>
+        <div className="subtle" style={{ fontSize: 13, marginBottom: 14, lineHeight: 1.6 }}>
+          여기에 입력한 키는 <b>이 폰의 브라우저에만 저장</b>됩니다. 서버에 저장되지 않으며,
+          매 분석 요청 시 헤더로만 일시 전달됩니다. 다른 사람은 사용할 수 없습니다.
+        </div>
+
+        <KeyInput
+          name="anthropic"
+          label="Claude API Key"
+          desc="Anthropic에서 발급 (sk-ant-…)"
+          link="https://console.anthropic.com/settings/keys"
+          value={keys.anthropic}
+          onSave={(v) => saveKey('anthropic', v)}
+          onClear={() => clearKey('anthropic')}
+        />
+
+        <KeyInput
+          name="gemini"
+          label="Gemini API Key"
+          desc="Google AI Studio에서 발급 (AIza…)"
+          link="https://aistudio.google.com/apikey"
+          value={keys.gemini}
+          onSave={(v) => saveKey('gemini', v)}
+          onClear={() => clearKey('gemini')}
+        />
+
+        <KeyInput
+          name="dart"
+          label="DART API Key"
+          desc="재무·공시 데이터 정확도 ↑ (40자 hex)"
+          link="https://opendart.fss.or.kr/intro/main.do"
+          value={keys.dart}
+          onSave={(v) => saveKey('dart', v)}
+          onClear={() => clearKey('dart')}
+        />
+
+        <KeyInput
+          name="naver_id"
+          label="Naver Client ID"
+          desc="네이버 뉴스 실시간 감성 분석"
+          link="https://developers.naver.com/apps"
+          value={keys.naver_id}
+          onSave={(v) => saveKey('naver_id', v)}
+          onClear={() => clearKey('naver_id')}
+        />
+
+        <KeyInput
+          name="naver_secret"
+          label="Naver Client Secret"
+          desc="위와 같은 앱의 Secret 값"
+          link="https://developers.naver.com/apps"
+          value={keys.naver_secret}
+          onSave={(v) => saveKey('naver_secret', v)}
+          onClear={() => clearKey('naver_secret')}
+        />
       </div>
 
       <div className="card">
@@ -40,32 +201,19 @@ export default function SettingsPage() {
             <option value="gemini" disabled={!providers.gemini}>Gemini</option>
           </select>
         </div>
-        <div className="subtle" style={{ marginTop: 8, fontSize: 12 }}>
-          키 등록 방법: <br />
-          • 로컬 실행: <code>backend/keys/api_keys.py</code> 의 ANTHROPIC_API_KEY / GEMINI_API_KEY 값 입력<br />
-          • 클라우드 배포: 환경변수 <code>ANTHROPIC_API_KEY</code>, <code>GEMINI_API_KEY</code> 등록
-        </div>
       </div>
 
       <div className="card">
         <h3>📊 데이터 공급자</h3>
-        <div className="kv"><span className="k">모드</span><span className="v">{dataStatus.data_provider}</span></div>
         <div className="kv"><span className="k">pykrx (시세/수급)</span><span className="tag green">기본 사용</span></div>
-        <div className="kv"><span className="k">DART (재무·공시·관리종목)</span><span className={'tag ' + (dataStatus.dart ? 'green' : 'red')}>{dataStatus.dart ? '연결됨' : '미설정'}</span></div>
+        <div className="kv"><span className="k">DART (재무·공시)</span><span className={'tag ' + (dataStatus.dart ? 'green' : 'red')}>{dataStatus.dart ? '연결됨' : '미설정'}</span></div>
         <div className="kv"><span className="k">네이버 뉴스</span><span className={'tag ' + (dataStatus.naver_news ? 'green' : 'red')}>{dataStatus.naver_news ? '연결됨' : '미설정'}</span></div>
-        <div className="subtle" style={{ marginTop: 10, fontSize: 12 }}>
-          키 발급:<br />
-          • DART: <code>https://opendart.fss.or.kr</code> → <code>DART_API_KEY</code><br />
-          • 네이버: <code>https://developers.naver.com/apps</code> → <code>NAVER_CLIENT_ID</code>, <code>NAVER_CLIENT_SECRET</code><br />
-          모든 키는 <code>backend/keys/api_keys.py</code> 또는 환경변수로 설정합니다.
-        </div>
       </div>
 
       <div className="card">
-        <h3>📱 PWA 설치 (앱처럼 사용)</h3>
+        <h3>📱 PWA 설치</h3>
         <div className="subtle">
-          갤럭시 Chrome에서 우측 상단 ⋮ 메뉴 → <b>"홈 화면에 추가"</b> 를 누르면 앱 아이콘이 생기고,
-          standalone 모드(주소창 없는 풀스크린)로 일반 앱처럼 동작합니다.
+          갤럭시 Chrome 우측 상단 ⋮ → <b>"홈 화면에 추가"</b> → 풀스크린 standalone 앱으로 실행됩니다.
         </div>
       </div>
 

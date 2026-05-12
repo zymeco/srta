@@ -4,7 +4,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from ..analysis.final_report_builder import build_analysis
 from ..analysis import ai_advisor
-from ..keys.api_keys import has_dart, has_naver, DATA_PROVIDER, resolve_ai_provider
+from ..keys.api_keys import has_dart, has_naver, DATA_PROVIDER
 
 router = APIRouter()
 

@@ -24,7 +24,31 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+
+# ---- 요청 헤더 → API 키 contextvar 주입 ----
+# 클라이언트가 X-*-Key 헤더로 자신의 API 키를 보내면 그 요청에만 사용.
+# 키는 서버 메모리/DB에 저장되지 않는다.
+from ..keys import api_keys
+
+
+@app.middleware("http")
+async def inject_user_keys(request, call_next):
+    h = request.headers
+    keys = {
+        "ANTHROPIC_API_KEY":   h.get("x-anthropic-key", ""),
+        "GEMINI_API_KEY":      h.get("x-gemini-key", ""),
+        "DART_API_KEY":        h.get("x-dart-key", ""),
+        "NAVER_CLIENT_ID":     h.get("x-naver-id", ""),
+        "NAVER_CLIENT_SECRET": h.get("x-naver-secret", ""),
+    }
+    token = api_keys.set_request_keys(keys)
+    try:
+        return await call_next(request)
+    finally:
+        api_keys.reset_request_keys(token)
 
 
 @app.on_event("startup")
