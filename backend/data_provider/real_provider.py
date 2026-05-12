@@ -1,10 +1,12 @@
 # 실데이터 통합 프로바이더.
-# 우선순위:
-#   시세/차트:  Naver Finance > pykrx > Mock
-#   재무:       pykrx(PER/PBR) + DART(부채/현금흐름/성장률) > Mock
-#   수급:       pykrx > Mock
-#   뉴스:       Naver 검색 > Mock
-#   리스크:     DART 공시 + Naver 뉴스 보조 > Mock
+#
+# 시세/차트: Naver Finance → yfinance (둘 다 실패 시 RuntimeError)
+# 재무:      pykrx(PER/PBR) + DART (선택)
+# 수급:      pykrx
+# 뉴스:      Naver 검색 (키 있을 때)
+# 리스크:    DART 공시 + Naver 뉴스 보조
+#
+# pykrx/Mock 시세 폴백은 사용하지 않음 — 진짜 시세 아니면 명확한 에러.
 
 from typing import Dict, Any, List
 
@@ -15,52 +17,58 @@ from . import dart_provider, naver_news_provider, naver_finance_provider, yfinan
 from ..keys.api_keys import has_dart, has_naver
 
 
+class NoMarketDataError(RuntimeError):
+    """모든 시세 소스에서 데이터를 받지 못함."""
+    pass
+
+
 class RealProvider(BaseProvider):
     def __init__(self):
-        self.pykrx = PykrxProvider()
-        self.mock = MockProvider()
+        self.pykrx = PykrxProvider()  # 재무·수급용
+        self.mock = MockProvider()    # 검색(전체 종목 마스터)·뉴스 폴백용
 
     def search(self, query: str) -> List[Dict[str, Any]]:
         return self.pykrx.search(query)
 
-    # ---- 시세: Naver > yfinance > pykrx > Mock ----
+    # ---- 시세: Naver → yfinance (Mock 폴백 없음) ----
     def get_stock_basic_info(self, stock_code: str) -> Dict[str, Any]:
-        # 1순위: 네이버 (한국 IP 환경에서 최적)
+        # 1순위: Naver Finance
         try:
             naver = naver_finance_provider.get_stock_basic_info(stock_code)
             if naver and naver.get("current_price"):
-                self._augment_with_pykrx(naver, stock_code)
+                self._enrich_market_cap_from_yf(naver, stock_code)
                 return naver
         except Exception as e:
             print(f"[RealProvider] naver basic 실패: {e}")
 
-        # 2순위: yfinance (해외 IP 환경 대비)
+        # 2순위: yfinance
         try:
             yf = yfinance_provider.get_stock_basic_info(stock_code)
             if yf and yf.get("current_price"):
-                self._augment_with_pykrx(yf, stock_code)
                 return yf
         except Exception as e:
             print(f"[RealProvider] yfinance basic 실패: {e}")
 
-        # 3순위: pykrx → Mock (이미 pykrx 내부에서 mock 폴백)
-        return self.pykrx.get_stock_basic_info(stock_code)
+        raise NoMarketDataError(
+            f"실시간 시세를 가져올 수 없습니다 (Naver/Yahoo 모두 실패): {stock_code}"
+        )
 
-    def _augment_with_pykrx(self, base: Dict[str, Any], stock_code: str):
-        """시총/시장구분/섹터를 pykrx로 보강 (실패 무시)."""
+    def _enrich_market_cap_from_yf(self, base: Dict[str, Any], stock_code: str):
+        """네이버에 없는 시총을 yfinance에서 가져와 채움 (실패 무시)."""
+        if base.get("market_cap"):
+            return
         try:
-            pk = self.pykrx.get_stock_basic_info(stock_code)
-            if pk and pk.get("market_cap") and pk.get("market") in ("KOSPI", "KOSDAQ"):
-                base["market_cap"] = pk["market_cap"]
-                base["market_cap_type"] = pk["market_cap_type"]
-                base["market"] = pk["market"]
-                if not base.get("sector"):
-                    base["sector"] = pk.get("sector", "")
+            yf = yfinance_provider.get_stock_basic_info(stock_code)
+            if yf and yf.get("market_cap"):
+                base["market_cap"] = yf["market_cap"]
+                base["market_cap_type"] = yf["market_cap_type"]
+                if yf.get("market"):
+                    base["market"] = yf["market"]
         except Exception:
             pass
 
     def get_price_history(self, stock_code: str) -> Dict[str, Any]:
-        # 1순위: 네이버
+        # 1순위: Naver
         try:
             naver = naver_finance_provider.get_price_history(stock_code)
             if naver and len(naver.get("prices", [])) >= 30:
@@ -76,10 +84,11 @@ class RealProvider(BaseProvider):
         except Exception as e:
             print(f"[RealProvider] yfinance history 실패: {e}")
 
-        # 3순위: pykrx → Mock
-        return self.pykrx.get_price_history(stock_code)
+        raise NoMarketDataError(
+            f"차트 데이터를 가져올 수 없습니다 (Naver/Yahoo 모두 실패): {stock_code}"
+        )
 
-    # ---- 재무 ----
+    # ---- 재무 (pykrx + DART) ----
     def get_financial_data(self, stock_code: str) -> Dict[str, Any]:
         base = self.pykrx.get_financial_data(stock_code)
         if has_dart():

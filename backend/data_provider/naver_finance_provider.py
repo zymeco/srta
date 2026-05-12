@@ -11,7 +11,7 @@ import httpx
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-from .mock_provider import MockProvider
+from .mock_provider import STOCK_MASTER
 from ..utils.cache import memoize
 
 POLLING_URL = "https://polling.finance.naver.com/api/realtime"
@@ -23,7 +23,11 @@ _UA = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
-_mock = MockProvider()
+def _find_meta(stock_code: str):
+    for m in STOCK_MASTER:
+        if m["stock_code"] == stock_code:
+            return m
+    return {"stock_code": stock_code, "stock_name": stock_code, "market": "KOSPI", "sector": ""}
 
 
 def _headers():
@@ -151,21 +155,20 @@ def get_stock_basic_info(stock_code: str, fallback_name: str = "") -> Optional[D
         high_52w = quote["high"]
         low_52w = quote["low"]
 
-    # 시총은 별도 API 필요. 일단 mock에서 보조값 사용 (분석 가중치에만 영향)
-    mock_info = _mock.get_stock_basic_info(stock_code)
-    market_cap = mock_info.get("market_cap", 0)
+    # 시총은 네이버 polling에서 직접 안 줌 → 0 (yfinance에서 보강하거나 분석 가중치는 mid로 처리)
+    meta = _find_meta(stock_code)
 
     return {
         "stock_code": stock_code,
-        "stock_name": quote["stock_name"] or fallback_name or stock_code,
-        "market": mock_info.get("market", "KOSPI"),
-        "sector": mock_info.get("sector", ""),
+        "stock_name": quote["stock_name"] or fallback_name or meta.get("stock_name") or stock_code,
+        "market": meta.get("market", "KOSPI"),
+        "sector": meta.get("sector", ""),
         "current_price": quote["current_price"],
         "change_rate": quote["change_rate"],
         "volume": quote["volume"],
         "trading_value": int(quote["current_price"] * quote["volume"]),
-        "market_cap": market_cap,
-        "market_cap_type": get_market_cap_class(market_cap),
+        "market_cap": 0,
+        "market_cap_type": "mid",
         "high_52w": high_52w,
         "low_52w": low_52w,
         "_source": "naver",

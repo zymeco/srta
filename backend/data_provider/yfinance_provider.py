@@ -1,12 +1,11 @@
 # yfinance(Yahoo Finance) 시세 프로바이더.
-# 네이버 차단 시 두 번째 폴백. Yahoo는 글로벌 서비스라 클라우드 IP 차단 거의 없음.
-# 한국 종목: 005930.KS (KOSPI), 247540.KQ (KOSDAQ)
+# 클라우드 IP 차단이 거의 없어 안정적인 1·2순위 시세 소스.
 
 import math
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-from .mock_provider import MockProvider, STOCK_MASTER
+from .mock_provider import STOCK_MASTER
 from ..utils.cache import memoize
 
 
@@ -18,45 +17,51 @@ def _try_yf():
         return None
 
 
-_mock = MockProvider()
-
-
 def _find_market(stock_code: str) -> str:
     for m in STOCK_MASTER:
         if m["stock_code"] == stock_code:
             return m["market"]
-    return "KOSPI"
+    return ""
 
 
 def _suffix(market: str) -> str:
     return ".KQ" if (market or "").upper() == "KOSDAQ" else ".KS"
 
 
-def _fetch_history(stock_code: str, period: str = "1y"):
+def _find_meta(stock_code: str) -> Dict[str, str]:
+    for m in STOCK_MASTER:
+        if m["stock_code"] == stock_code:
+            return m
+    return {"stock_code": stock_code, "stock_name": stock_code, "market": "KOSPI", "sector": ""}
+
+
+def _fetch_ticker(stock_code: str):
+    """두 suffix 모두 시도. (ticker, hist1y, used_suffix) 반환."""
     yf = _try_yf()
     if yf is None:
-        return None, None
-    # 두 suffix 모두 시도
-    suffixes = [_suffix(_find_market(stock_code)), ".KS", ".KQ"]
-    seen = set()
-    for s in suffixes:
-        if s in seen:
-            continue
-        seen.add(s)
+        return None, None, None
+
+    hint = _find_market(stock_code)
+    order = [_suffix(hint)] if hint else []
+    for s in (".KS", ".KQ"):
+        if s not in order:
+            order.append(s)
+
+    for s in order:
         try:
             symbol = f"{stock_code}{s}"
             t = yf.Ticker(symbol)
-            hist = t.history(period=period, auto_adjust=False)
+            hist = t.history(period="1y", auto_adjust=False)
             if hist is not None and len(hist) > 0:
-                return hist, symbol
+                return t, hist, s
         except Exception as e:
             print(f"[yfinance] {symbol} 실패: {e}")
-    return None, None
+    return None, None, None
 
 
 def get_quote(stock_code: str) -> Optional[Dict[str, Any]]:
     def factory():
-        hist, symbol = _fetch_history(stock_code, "5d")
+        t, hist, suffix = _fetch_ticker(stock_code)
         if hist is None or len(hist) == 0:
             return None
         try:
@@ -77,7 +82,7 @@ def get_quote(stock_code: str) -> Optional[Dict[str, Any]]:
                 "high": float(last["High"]),
                 "low": float(last["Low"]),
                 "volume": int(last["Volume"] or 0),
-                "_symbol": symbol,
+                "_symbol": f"{stock_code}{suffix}",
             }
         except Exception as e:
             print(f"[yfinance quote] 파싱 실패({stock_code}): {e}")
@@ -88,7 +93,7 @@ def get_quote(stock_code: str) -> Optional[Dict[str, Any]]:
 
 def get_daily_ohlcv(stock_code: str, period: str = "1y") -> List[Dict[str, Any]]:
     def factory():
-        hist, _ = _fetch_history(stock_code, period)
+        _, hist, _ = _fetch_ticker(stock_code)
         if hist is None or len(hist) == 0:
             return []
         out = []
@@ -110,45 +115,77 @@ def get_daily_ohlcv(stock_code: str, period: str = "1y") -> List[Dict[str, Any]]
     return memoize(f"yf:ohlcv:{stock_code}:{period}", 600, factory) or []
 
 
+def _market_cap_from_yf(t, close_price: float) -> int:
+    """발행주식수 × 종가 = 시가총액."""
+    try:
+        fi = t.fast_info
+        shares = getattr(fi, "shares", None)
+        if shares:
+            return int(shares * close_price)
+    except Exception:
+        pass
+    return 0
+
+
 def get_stock_basic_info(stock_code: str) -> Optional[Dict[str, Any]]:
-    quote = get_quote(stock_code)
-    if not quote:
-        return None
-    ohlcv = get_daily_ohlcv(stock_code, "1y")
-    if ohlcv:
-        highs = [o["high"] for o in ohlcv]
-        lows = [o["low"] for o in ohlcv]
-        high_52w = max(highs)
-        low_52w = min(lows)
-    else:
-        high_52w = quote["high"]
-        low_52w = quote["low"]
+    def factory():
+        t, hist, suffix = _fetch_ticker(stock_code)
+        if hist is None or len(hist) == 0:
+            return None
+        try:
+            last = hist.iloc[-1]
+            prev = hist.iloc[-2] if len(hist) >= 2 else last
+            close = float(last["Close"])
+            prev_close = float(prev["Close"])
+            change = close - prev_close
+            change_rate = (change / prev_close * 100) if prev_close else 0
+            volume = int(last["Volume"] or 0)
 
-    # 종목명/시총은 mock에서 보조
-    mock_info = _mock.get_stock_basic_info(stock_code)
-    market_cap = mock_info.get("market_cap", 0)
-    if market_cap >= 5_000_000_000_000:
-        cap_type = "large"
-    elif market_cap >= 500_000_000_000:
-        cap_type = "mid"
-    else:
-        cap_type = "small"
+            high_52w = float(hist["High"].max())
+            low_52w = float(hist["Low"].min())
 
-    return {
-        "stock_code": stock_code,
-        "stock_name": mock_info.get("stock_name", stock_code),
-        "market": mock_info.get("market", "KOSPI"),
-        "sector": mock_info.get("sector", ""),
-        "current_price": quote["current_price"],
-        "change_rate": quote["change_rate"],
-        "volume": quote["volume"],
-        "trading_value": int(quote["current_price"] * quote["volume"]),
-        "market_cap": market_cap,
-        "market_cap_type": cap_type,
-        "high_52w": high_52w,
-        "low_52w": low_52w,
-        "_source": "yfinance",
-    }
+            market_cap = _market_cap_from_yf(t, close)
+            if market_cap >= 5_000_000_000_000:
+                cap_type = "large"
+            elif market_cap >= 500_000_000_000:
+                cap_type = "mid"
+            else:
+                cap_type = "small"
+
+            meta = _find_meta(stock_code)
+            # exchange로 시장 보정
+            try:
+                exch = getattr(t.fast_info, "exchange", "") or ""
+                if "KOE" in exch.upper():
+                    meta_market = "KOSDAQ"
+                elif "KSC" in exch.upper() or "KRX" in exch.upper():
+                    meta_market = "KOSPI"
+                else:
+                    meta_market = meta.get("market", "KOSPI")
+            except Exception:
+                meta_market = meta.get("market", "KOSPI")
+
+            return {
+                "stock_code": stock_code,
+                "stock_name": meta.get("stock_name") or stock_code,
+                "market": meta_market,
+                "sector": meta.get("sector", ""),
+                "current_price": close,
+                "change_rate": round(change_rate, 2),
+                "volume": volume,
+                "trading_value": int(close * volume),
+                "market_cap": market_cap,
+                "market_cap_type": cap_type,
+                "high_52w": high_52w,
+                "low_52w": low_52w,
+                "_source": "yfinance",
+                "_symbol": f"{stock_code}{suffix}",
+            }
+        except Exception as e:
+            print(f"[yfinance basic] 파싱 실패({stock_code}): {e}")
+            return None
+
+    return memoize(f"yf:basic:{stock_code}", 60, factory)
 
 
 def get_price_history(stock_code: str) -> Optional[Dict[str, Any]]:
