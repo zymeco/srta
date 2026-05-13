@@ -3,8 +3,8 @@ import { NavLink } from 'react-router-dom'
 
 const items = [
   { to: '/', icon: '🔍', label: '검색', exact: true },
-  { to: '/analyze/005930', icon: '📊', label: '분석' },
   { to: '/watchlist', icon: '⭐', label: '관심' },
+  { to: '/portfolio', icon: '💼', label: '포트폴리오' },
   { to: '/history', icon: '🕒', label: '기록' },
   { to: '/settings', icon: '⚙️', label: '설정' },
 ]

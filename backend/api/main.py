@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.requests import Request
 
 from ..db.database import init_db
-from . import routes_stock, routes_analysis, routes_watchlist, routes_history, routes_report, routes_ai, routes_debug
+from . import routes_stock, routes_analysis, routes_watchlist, routes_history, routes_report, routes_ai, routes_debug, routes_chat, routes_portfolio, routes_notify
 
 app = FastAPI(title="Stock Real Trader Analyzer", version="1.0.0")
 
@@ -43,6 +43,8 @@ async def inject_user_keys(request, call_next):
         "DART_API_KEY":        h.get("x-dart-key", ""),
         "NAVER_CLIENT_ID":     h.get("x-naver-id", ""),
         "NAVER_CLIENT_SECRET": h.get("x-naver-secret", ""),
+        "TELEGRAM_BOT_TOKEN":  h.get("x-telegram-token", ""),
+        "TELEGRAM_CHAT_ID":    h.get("x-telegram-chat", ""),
     }
     token = api_keys.set_request_keys(keys)
     try:
@@ -74,6 +76,9 @@ app.include_router(routes_history.router, prefix="/api", tags=["history"])
 app.include_router(routes_report.router, prefix="/api", tags=["report"])
 app.include_router(routes_ai.router, prefix="/api", tags=["ai"])
 app.include_router(routes_debug.router, prefix="/api", tags=["debug"])
+app.include_router(routes_chat.router, prefix="/api", tags=["chat"])
+app.include_router(routes_portfolio.router, prefix="/api", tags=["portfolio"])
+app.include_router(routes_notify.router, prefix="/api", tags=["notify"])
 
 
 # ----- SPA 정적 서빙 -----

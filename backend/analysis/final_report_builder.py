@@ -20,6 +20,13 @@ from . import (
     strategy_engine,
     advanced_metrics,
     investor_style,
+    market_context,
+    peer_comparison,
+    consensus,
+    candle_patterns,
+    backtest,
+    macro,
+    earnings,
 )
 
 
@@ -163,6 +170,28 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
 
     # 투자 스타일 점수 (그레이엄/버핏/린치/모멘텀)
     styles = investor_style.compute_all_styles(fin, ta, vola, adv, sup)
+
+    # 시장 컨텍스트
+    market_ctx = market_context.get_market_context(basic.get("market", "KOSPI"))
+
+    # 동종 업종 비교
+    peer = peer_comparison.get_peer_comparison(stock_code, basic.get("sector", ""))
+
+    # 증권사 컨센서스
+    cons = consensus.get_consensus(stock_code)
+
+    # 캔들 패턴
+    candles = candle_patterns.analyze(price)
+
+    # 백테스트
+    bt = backtest.compute(price)
+
+    # 매크로 지표 (자주 안 바뀌니 캐시 됨)
+    macro_data = macro.get_macro()
+    macro_text = macro.get_macro_context_text(macro_data)
+
+    # 실적 캘린더
+    earnings_info = earnings.get_earnings_info(stock_code)
 
     pa = position_analyzer.analyze(basic, ta, vola, sa, fin, na, ra)
     strat = strategy_engine.compute(basic, ta, ra, pa, financial=fin)
@@ -348,6 +377,14 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
         "one_liner": one_liner,
         "investor_styles": styles,
         "advanced_metrics": adv,
+        "market_context": market_ctx,
+        "peer_comparison": peer,
+        "consensus": cons,
+        "candle_patterns": candles,
+        "backtest": bt,
+        "macro": macro_data,
+        "macro_text": macro_text,
+        "earnings": earnings_info,
         "disclaimer": "본 결과는 투자 추천이 아닌 투자 판단 보조 도구입니다.",
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }

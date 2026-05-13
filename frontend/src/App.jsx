@@ -6,6 +6,7 @@ import ReportPage from './pages/ReportPage.jsx'
 import WatchlistPage from './pages/WatchlistPage.jsx'
 import HistoryPage from './pages/HistoryPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
+import PortfolioPage from './pages/PortfolioPage.jsx'
 import PrivacyPage from './pages/PrivacyPage.jsx'
 import TermsPage from './pages/TermsPage.jsx'
 import BottomNav from './components/BottomNav.jsx'
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/watchlist" element={<WatchlistPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/portfolio" element={<PortfolioPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

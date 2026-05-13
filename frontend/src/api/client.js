@@ -10,6 +10,8 @@ const KEY_MAP = {
   'X-Dart-Key':      'srta_key_dart',
   'X-Naver-Id':      'srta_key_naver_id',
   'X-Naver-Secret':  'srta_key_naver_secret',
+  'X-Telegram-Token': 'srta_key_telegram_token',
+  'X-Telegram-Chat':  'srta_key_telegram_chat',
 };
 
 // 헤더로 안전하게 보낼 수 있는 값인지 검증 (printable ASCII만 허용)

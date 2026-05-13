@@ -118,6 +118,8 @@ export default function SettingsPage() {
     dart: userKeys.get('dart'),
     naver_id: userKeys.get('naver_id'),
     naver_secret: userKeys.get('naver_secret'),
+    telegram_token: userKeys.get('telegram_token'),
+    telegram_chat: userKeys.get('telegram_chat'),
   })
 
   function refreshStatus() {
@@ -219,6 +221,24 @@ export default function SettingsPage() {
           value={keys.naver_secret}
           onSave={(v) => saveKey('naver_secret', v)}
           onClear={() => clearKey('naver_secret')}
+        />
+
+        <KeyInput
+          name="telegram_token"
+          label="Telegram Bot Token"
+          desc="@BotFather에서 발급 (선택, 알림용)"
+          link="https://core.telegram.org/bots#botfather"
+          value={keys.telegram_token}
+          onSave={(v) => saveKey('telegram_token', v)}
+          onClear={() => clearKey('telegram_token')}
+        />
+        <KeyInput
+          name="telegram_chat"
+          label="Telegram Chat ID"
+          desc="@userinfobot에서 본인 ID 확인 후 입력"
+          value={keys.telegram_chat}
+          onSave={(v) => saveKey('telegram_chat', v)}
+          onClear={() => clearKey('telegram_chat')}
         />
       </div>
 
