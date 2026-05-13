@@ -84,7 +84,8 @@ def _call_claude(prompt: str, timeout: float = 30.0) -> str:
 
 def _call_gemini(prompt: str, timeout: float = 30.0) -> str:
     model = "gemini-2.5-flash"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={get_key('GEMINI_API_KEY')}"
+    api_key = get_key("GEMINI_API_KEY")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     body = {
         "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],

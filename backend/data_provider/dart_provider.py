@@ -31,7 +31,8 @@ def _load_corp_code_map() -> Dict[str, str]:
     def factory():
         try:
             if not os.path.exists(CORP_CODE_PATH):
-                url = f"{BASE}/corpCode.xml?crtfc_key={get_key("DART_API_KEY")}"
+                _key = get_key("DART_API_KEY")
+                url = f"{BASE}/corpCode.xml?crtfc_key={_key}"
                 with httpx.Client(timeout=30.0) as c:
                     r = c.get(url)
                     r.raise_for_status()
