@@ -143,11 +143,14 @@ def get_ai_comment(analysis: Dict[str, Any], provider: str = "") -> Dict[str, An
                     "→ https://console.anthropic.com 에서 결제/한도 확인하세요."
                 )
         elif status in (401, 403):
-            friendly = f"AI API 키가 유효하지 않습니다({status}). 설정에서 키를 다시 등록하세요."
+            friendly = f"AI API 키가 유효하지 않습니다({status}). 설정에서 키를 다시 등록하세요. ({body[:200]})"
         elif status == 400:
-            friendly = f"AI API 요청 형식 오류({status}). 모델 또는 키를 확인하세요."
+            # 400은 모델명/요청 형식 문제. 원본 메시지를 보여줘야 진단 가능
+            friendly = f"AI API 오류({status}, {resolved}): {body[:280]}"
+        elif status == 404:
+            friendly = f"AI 모델을 찾을 수 없습니다({status}). 모델 이름이 변경되었을 수 있습니다. ({body[:200]})"
         else:
-            friendly = f"AI API 오류({status}): {body[:120]}"
+            friendly = f"AI API 오류({status}, {resolved}): {body[:200]}"
 
         return {"provider": resolved, "comment": "", "error": friendly}
     except httpx.ConnectError:
