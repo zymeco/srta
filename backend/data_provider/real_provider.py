@@ -13,7 +13,13 @@ from typing import Dict, Any, List
 from .base_provider import BaseProvider
 from .pykrx_provider import PykrxProvider
 from .mock_provider import MockProvider
-from . import dart_provider, naver_news_provider, naver_finance_provider, yfinance_provider
+from . import (
+    dart_provider,
+    naver_news_provider,
+    naver_finance_provider,
+    yfinance_provider,
+    naver_risk_provider,
+)
 from ..keys.api_keys import has_dart, has_naver
 
 
@@ -118,12 +124,23 @@ class RealProvider(BaseProvider):
     def get_risk_data(self, stock_code: str) -> Dict[str, Any]:
         risk = self.pykrx.get_risk_data(stock_code)
 
+        # 1. 네이버 공개 리스크 페이지 (관리종목/거래정지) — 키 불필요, 항상 사용
+        try:
+            naver_flags = naver_risk_provider.get_all_risk_flags(stock_code)
+            for k, v in naver_flags.items():
+                if v:
+                    risk[k] = True
+        except Exception as e:
+            print(f"[RealProvider] naver risk 실패: {e}")
+
+        # 2. DART 공시 (키 있을 때) — 유상증자/전환사채/감사의견 등
         if has_dart():
             disc = dart_provider.get_disclosure_risks(stock_code)
             for k, v in disc.items():
                 if v:
                     risk[k] = True
 
+        # 3. Naver 검색 뉴스 (키 있을 때) — 보조 신호
         if has_naver():
             try:
                 info = self.get_stock_basic_info(stock_code)
@@ -135,6 +152,7 @@ class RealProvider(BaseProvider):
             except Exception:
                 pass
 
+        # 4. DART 재무 보강 (자본잠식/3년 적자)
         if has_dart():
             fin = self.get_financial_data(stock_code)
             if fin.get("capital_impairment"):
