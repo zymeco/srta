@@ -18,6 +18,8 @@ from . import (
     position_analyzer,
     score_engine,
     strategy_engine,
+    advanced_metrics,
+    investor_style,
 )
 
 
@@ -38,6 +40,50 @@ def _summary(positive_pool, negative_pool, warning_pool):
         "negative": top(negative_pool),
         "warning": top(warning_pool),
     }
+
+
+def _one_liner(stock_name, scored, strat, risk, styles, adv, fin):
+    """한 줄 결론 — 핵심만 추출."""
+    if risk.get("is_buy_forbidden"):
+        return f"❌ 매수 금지: {risk.get('warning_message', '')[:60]}"
+
+    opinion = scored.get("final_opinion", "")
+    style_lbl = styles.get("best_style_label", "")
+    style_score = styles.get("best_style_score", 0)
+    chasing = strat.get("chasing_risk", "")
+
+    parts = []
+    per = fin.get("forward_per") or fin.get("per") or 0
+    peg = adv.get("peg") or 0
+    near_high = adv.get("near_high_pct") or 0
+
+    if 0 < per < 10:
+        parts.append(f"PER {per:.1f}배 매우 저평가")
+    elif 0 < per < 15:
+        parts.append(f"PER {per:.1f}배 저평가")
+    elif per > 30:
+        parts.append(f"PER {per:.1f}배 고평가")
+
+    if 0 < peg < 1:
+        parts.append(f"PEG {peg} 성장가치")
+
+    if near_high >= 95:
+        parts.append("52주 신고가 근접")
+    elif near_high <= 60:
+        parts.append("52주 저점 부근")
+
+    if styles.get("best_style") == "momentum" and style_score >= 70:
+        parts.append("강한 모멘텀")
+    if styles.get("best_style") == "graham" and style_score >= 70:
+        parts.append("가치주 적합")
+    if styles.get("best_style") == "buffett" and style_score >= 70:
+        parts.append("퀄리티 우수")
+
+    if chasing in ("높음", "매우 높음"):
+        parts.append(f"추격매수 {chasing}")
+
+    parts_str = " · ".join(parts) if parts else style_lbl
+    return f"{opinion} ({parts_str})"
 
 
 def _final_comment(stock_name, opinion, position, strategy, risk):
@@ -104,10 +150,22 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
     na = news_analyzer.analyze(news_raw)
     ra = risk_analyzer.analyze(risk_raw, fin)
 
-    scored = score_engine.compute(fa, ga, va, ta, vola, sa, na, ra, basic.get("market_cap_type", "mid"))
+    scored = score_engine.compute(
+        fa, ga, va, ta, vola, sa, na, ra,
+        market_cap_type=basic.get("market_cap_type", "mid"),
+        sector=basic.get("sector", ""),
+        themes=(news_raw.get("themes") if isinstance(news_raw, dict) else []) or [],
+        financial_raw=fin,
+    )
+
+    # 고급 지표 (MDD/ATR/OBV/PEG/모멘텀/변동성)
+    adv = advanced_metrics.compute_advanced(price, basic, fin)
+
+    # 투자 스타일 점수 (그레이엄/버핏/린치/모멘텀)
+    styles = investor_style.compute_all_styles(fin, ta, vola, adv, sup)
 
     pa = position_analyzer.analyze(basic, ta, vola, sa, fin, na, ra)
-    strat = strategy_engine.compute(basic, ta, ra, pa)
+    strat = strategy_engine.compute(basic, ta, ra, pa, financial=fin)
 
     # 의견은 리스크 우선 원칙으로 강제 변경
     if ra.get("risk_level") == 4:
@@ -211,6 +269,7 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
     }
 
     final_comment = _final_comment(basic["stock_name"], scored["final_opinion"], pa, strat, ra)
+    one_liner = _one_liner(basic["stock_name"], scored, strat, ra, styles, adv, fin)
 
     return {
         "stock_name": basic["stock_name"],
@@ -228,6 +287,8 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
         "total_score": scored["total_score"],
         "grade": scored["grade"],
         "final_opinion": scored["final_opinion"],
+        "sector_category": scored.get("sector_category", "default"),
+        "score_bonus": scored.get("bonus", {}),
         "risk_level": ra["risk_level"],
         "risk_label": ra["risk_label"],
         "strong_warning": strong_warning,
@@ -250,10 +311,16 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
             "net_income_growth": fin.get("net_income_growth"),
             "eps_growth": fin.get("eps_growth"),
             "per": fin.get("per"),
+            "forward_per": fin.get("forward_per"),
             "pbr": fin.get("pbr"),
             "psr": fin.get("psr"),
             "ev_ebitda": fin.get("ev_ebitda"),
             "sector_per": fin.get("sector_per"),
+            "eps": fin.get("eps"),
+            "forward_eps": fin.get("forward_eps"),
+            "bps": fin.get("bps"),
+            "dividend_yield": fin.get("dividend_yield"),
+            "foreign_ratio": fin.get("foreign_ratio"),
         },
         "technical_detail": {
             "ma5": ta["ma5"], "ma20": ta["ma20"], "ma60": ta["ma60"], "ma120": ta["ma120"],
@@ -278,6 +345,9 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
         "news": news_raw,
         "charts": charts,
         "final_comment": final_comment,
+        "one_liner": one_liner,
+        "investor_styles": styles,
+        "advanced_metrics": adv,
         "disclaimer": "본 결과는 투자 추천이 아닌 투자 판단 보조 도구입니다.",
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }

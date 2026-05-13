@@ -94,9 +94,24 @@ class RealProvider(BaseProvider):
             f"차트 데이터를 가져올 수 없습니다 (Naver/Yahoo 모두 실패): {stock_code}"
         )
 
-    # ---- 재무 (pykrx + DART) ----
+    # ---- 재무 (Naver 펀더멘털 + pykrx + DART) ----
     def get_financial_data(self, stock_code: str) -> Dict[str, Any]:
+        # 1) 기본은 pykrx(있을 때) → Mock 폴백
         base = self.pykrx.get_financial_data(stock_code)
+
+        # 2) 네이버 integration에서 진짜 PER/PBR/EPS/BPS/배당수익률 등 덮어쓰기
+        try:
+            fund = naver_finance_provider.get_fundamentals(stock_code)
+            if fund:
+                for k in ("per", "forward_per", "eps", "forward_eps",
+                          "pbr", "bps", "dividend_yield", "dividend_per_share",
+                          "foreign_ratio"):
+                    if fund.get(k):
+                        base[k] = fund[k]
+        except Exception as e:
+            print(f"[RealProvider] naver fundamentals 실패: {e}")
+
+        # 3) DART 키 있으면 부채/현금흐름/성장률 등 덮어쓰기
         if has_dart():
             dart_fin = dart_provider.get_financial(stock_code)
             if dart_fin:

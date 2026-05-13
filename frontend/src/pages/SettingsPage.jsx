@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, userKeys } from '../api/client.js'
+import { isAiEnabled } from '../components/AiAdvisorCard.jsx'
+
+// 동일 키를 AiAdvisorCard 와 공유
+const AI_ENABLED_KEY = 'ai_enabled'
 
 // 키 등록 카드 (재사용)
 function KeyInput({ name, label, desc, link, type = 'password', value, onSave, onClear }) {
@@ -105,6 +109,7 @@ export default function SettingsPage() {
   const [providers, setProviders] = useState({ claude: false, gemini: false })
   const [provider, setProvider] = useState(localStorage.getItem('ai_provider') || 'auto')
   const [dataStatus, setDataStatus] = useState({ data_provider: '-', dart: false, naver_news: false })
+  const [aiEnabled, setAiEnabled] = useState(isAiEnabled())
 
   // 로컬 키 상태
   const [keys, setKeys] = useState({
@@ -140,6 +145,13 @@ export default function SettingsPage() {
     userKeys.set(name, '')
     setKeys({ ...keys, [name]: '' })
     setTimeout(refreshStatus, 200)
+  }
+
+  function toggleAi() {
+    const next = !aiEnabled
+    setAiEnabled(next)
+    localStorage.setItem(AI_ENABLED_KEY, next ? 'true' : 'false')
+    // 다른 탭(같은 도메인)에도 storage 이벤트로 즉시 전파됨
   }
 
   return (
@@ -211,12 +223,59 @@ export default function SettingsPage() {
       </div>
 
       <div className="card">
-        <h3>🤖 AI 공급자</h3>
+        <h3>🤖 AI 판단 사용</h3>
+        <div className="row space" style={{ alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+              AI 자연어 분석 {aiEnabled ? 'ON' : 'OFF'}
+            </div>
+            <div className="subtle" style={{ fontSize: 12, lineHeight: 1.5 }}>
+              {aiEnabled
+                ? '분석 화면에 AI 카드가 표시되며, 요청 시 외부 AI 호출이 발생합니다.'
+                : 'AI 카드가 분석 화면에서 숨겨지고, 외부 AI 호출이 발생하지 않습니다.'}
+            </div>
+          </div>
+          <button
+            className={'btn ' + (aiEnabled ? 'primary' : 'ghost')}
+            onClick={toggleAi}
+            style={{
+              minWidth: 80, height: 44,
+              background: aiEnabled ? 'var(--brand)' : 'rgba(127,127,127,0.18)',
+              color: aiEnabled ? 'white' : 'var(--text)',
+              border: aiEnabled ? 'none' : '1px solid var(--border)',
+              fontWeight: 700,
+            }}
+          >
+            {aiEnabled ? 'ON' : 'OFF'}
+          </button>
+        </div>
+        {!aiEnabled && (
+          <div className="subtle" style={{
+            fontSize: 12,
+            padding: 10,
+            background: 'rgba(127,127,127,0.10)',
+            borderRadius: 8,
+            marginTop: 6,
+          }}>
+            💡 OFF 상태에서는 기술/재무/뉴스 점수 기반 분석만 표시됩니다.
+            AI 키 등록 여부와 무관하게 호출이 막힙니다.
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ opacity: aiEnabled ? 1 : 0.5 }}>
+        <h3>🤖 AI 공급자 {!aiEnabled && <span className="tag" style={{ marginLeft: 6, opacity: 0.7 }}>AI OFF</span>}</h3>
         <div className="kv"><span className="k">Claude</span><span className={'tag ' + (providers.claude ? 'green' : 'red')}>{providers.claude ? '사용 가능' : '미설정'}</span></div>
         <div className="kv"><span className="k">Gemini</span><span className={'tag ' + (providers.gemini ? 'green' : 'red')}>{providers.gemini ? '사용 가능' : '미설정'}</span></div>
         <div style={{ marginTop: 10 }}>
           <div className="subtle" style={{ marginBottom: 6 }}>기본 공급자 선택</div>
-          <select className="input" value={provider} onChange={e => changeProvider(e.target.value)} style={{ height: 44 }}>
+          <select
+            className="input"
+            value={provider}
+            onChange={e => changeProvider(e.target.value)}
+            style={{ height: 44 }}
+            disabled={!aiEnabled}
+          >
             <option value="auto">자동 선택 (Claude 우선)</option>
             <option value="claude" disabled={!providers.claude}>Claude</option>
             <option value="gemini" disabled={!providers.gemini}>Gemini</option>

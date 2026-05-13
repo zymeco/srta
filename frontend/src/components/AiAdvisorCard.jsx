@@ -1,16 +1,38 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api/client.js'
 
+// localStorage 키 — SettingsPage 토글과 공유
+const AI_ENABLED_KEY = 'ai_enabled'
+
+export function isAiEnabled() {
+  // 기본값: ON (true). 'false' 문자열로 저장되어 있을 때만 OFF.
+  return localStorage.getItem(AI_ENABLED_KEY) !== 'false'
+}
+
 export default function AiAdvisorCard({ stockCode }) {
   const [providers, setProviders] = useState({ claude: false, gemini: false })
   const [provider, setProvider] = useState(localStorage.getItem('ai_provider') || 'auto')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [err, setErr] = useState('')
+  const [aiEnabled, setAiEnabled] = useState(isAiEnabled())
 
   useEffect(() => {
+    if (!aiEnabled) return
     api.aiProviders().then(d => setProviders(d.available || {})).catch(() => {})
+  }, [aiEnabled])
+
+  // 다른 탭/페이지에서 토글 변경 시 즉시 반영
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key === AI_ENABLED_KEY) setAiEnabled(isAiEnabled())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [])
+
+  // AI OFF — 카드 자체를 렌더하지 않음 (깔끔)
+  if (!aiEnabled) return null
 
   const anyAvailable = providers.claude || providers.gemini
 

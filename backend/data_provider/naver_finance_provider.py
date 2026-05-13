@@ -132,6 +132,71 @@ def get_daily_ohlcv(stock_code: str, count: int = 150) -> List[Dict[str, Any]]:
     return memoize(f"naver:ohlcv:{stock_code}:{count}", 600, factory) or []
 
 
+def _parse_korean_money(s: str) -> int:
+    """'1,408조 2,999억' 같은 문자열 → 원 단위 정수."""
+    if not s:
+        return 0
+    s = s.replace(",", "").replace(" ", "")
+    total = 0
+    import re
+    m = re.search(r"(\d+(?:\.\d+)?)조", s)
+    if m:
+        total += int(float(m.group(1)) * 1_0000_0000_0000)
+    m = re.search(r"(\d+(?:\.\d+)?)억", s)
+    if m:
+        total += int(float(m.group(1)) * 1_0000_0000)
+    if total == 0:
+        try:
+            total = int(s.replace("원", ""))
+        except Exception:
+            pass
+    return total
+
+
+def _parse_num(s: str) -> float:
+    if not s:
+        return 0.0
+    s = str(s).replace(",", "").replace("배", "").replace("%", "").replace("원", "").replace(" ", "")
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+
+def get_fundamentals(stock_code: str) -> Optional[Dict[str, Any]]:
+    """네이버 종목 종합 정보에서 PER/PBR/EPS/BPS/시총/외인소진율 등 받음."""
+    def factory():
+        try:
+            url = f"https://m.stock.naver.com/api/stock/{stock_code}/integration"
+            with httpx.Client(timeout=8.0, headers=_headers()) as c:
+                r = c.get(url)
+                r.raise_for_status()
+                d = r.json()
+            kv = {}
+            for ti in d.get("totalInfos", []) or []:
+                k = (ti.get("key") or "").strip()
+                v = ti.get("value") or ""
+                kv[k] = v
+            return {
+                "per": _parse_num(kv.get("PER")),
+                "forward_per": _parse_num(kv.get("추정PER")),
+                "eps": _parse_num(kv.get("EPS")),
+                "forward_eps": _parse_num(kv.get("추정EPS")),
+                "pbr": _parse_num(kv.get("PBR")),
+                "bps": _parse_num(kv.get("BPS")),
+                "dividend_yield": _parse_num(kv.get("배당수익률")),
+                "dividend_per_share": _parse_num(kv.get("주당배당금")),
+                "market_cap": _parse_korean_money(kv.get("시총", "")),
+                "foreign_ratio": _parse_num(kv.get("외인소진율")),
+                "_source": "naver_integration",
+            }
+        except Exception as e:
+            print(f"[Naver fundamentals] 실패({stock_code}): {e}")
+            return None
+
+    return memoize(f"naver:fund:{stock_code}", 600, factory)
+
+
 def get_market_cap_class(market_cap: float) -> str:
     if market_cap >= 5_000_000_000_000:
         return "large"
@@ -155,8 +220,17 @@ def get_stock_basic_info(stock_code: str, fallback_name: str = "") -> Optional[D
         high_52w = quote["high"]
         low_52w = quote["low"]
 
-    # 시총은 네이버 polling에서 직접 안 줌 → 0 (yfinance에서 보강하거나 분석 가중치는 mid로 처리)
     meta = _find_meta(stock_code)
+
+    # 시총 / 외인소진율 등은 integration API에서
+    fund = get_fundamentals(stock_code) or {}
+    market_cap = int(fund.get("market_cap") or 0)
+    if market_cap >= 5_000_000_000_000:
+        cap_type = "large"
+    elif market_cap >= 500_000_000_000:
+        cap_type = "mid"
+    else:
+        cap_type = "small"
 
     return {
         "stock_code": stock_code,
@@ -167,8 +241,8 @@ def get_stock_basic_info(stock_code: str, fallback_name: str = "") -> Optional[D
         "change_rate": quote["change_rate"],
         "volume": quote["volume"],
         "trading_value": int(quote["current_price"] * quote["volume"]),
-        "market_cap": 0,
-        "market_cap_type": "mid",
+        "market_cap": market_cap,
+        "market_cap_type": cap_type,
         "high_52w": high_52w,
         "low_52w": low_52w,
         "_source": "naver",
