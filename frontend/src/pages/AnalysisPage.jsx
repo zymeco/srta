@@ -110,7 +110,7 @@ export default function AnalysisPage() {
       </div>
 
       {/* === 시장 컨텍스트 + 컨센서스 (의사결정 핵심) === */}
-      <MarketContextCard market={data.market_context} macroText={data.macro_text} />
+      <MarketContextCard market={data.market_context} macroText={data.macro_text} adjustment={data.market_adjustment} />
       <ConsensusCard consensus={data.consensus} />
 
       {/* === 투자 스타일 4종 === */}

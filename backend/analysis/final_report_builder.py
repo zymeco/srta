@@ -49,7 +49,7 @@ def _summary(positive_pool, negative_pool, warning_pool):
     }
 
 
-def _one_liner(stock_name, scored, strat, risk, styles, adv, fin):
+def _one_liner(stock_name, scored, strat, risk, styles, adv, fin, market_ctx=None):
     """한 줄 결론 — 핵심만 추출."""
     if risk.get("is_buy_forbidden"):
         return f"❌ 매수 금지: {risk.get('warning_message', '')[:60]}"
@@ -60,6 +60,17 @@ def _one_liner(stock_name, scored, strat, risk, styles, adv, fin):
     chasing = strat.get("chasing_risk", "")
 
     parts = []
+
+    # 시장 상태 우선 표시
+    if market_ctx:
+        m_state = market_ctx.get("state", "")
+        if m_state in ("강한 하락장", "급락 / 강한 하락"):
+            parts.append(f"⚠ 시장 {m_state}")
+        elif m_state in ("하락장", "조정 중"):
+            parts.append(f"시장 {m_state}")
+        elif m_state in ("강한 상승장",):
+            parts.append(f"시장 {m_state}")
+
     per = fin.get("forward_per") or fin.get("per") or 0
     peg = adv.get("peg") or 0
     near_high = adv.get("near_high_pct") or 0
@@ -196,6 +207,44 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
     pa = position_analyzer.analyze(basic, ta, vola, sa, fin, na, ra)
     strat = strategy_engine.compute(basic, ta, ra, pa, financial=fin)
 
+    # ---- 시장 상태에 따른 점수·전략 보정 ----
+    sector_cat = scored.get("sector_category", "default")
+    market_score = market_ctx.get("score", 50)
+    adjust = market_context.market_adjustment_multiplier(market_score, sector_cat)
+
+    # 점수 보정 (소수점 1자리)
+    orig_score = scored["total_score"]
+    adj_score = max(0, min(100, orig_score * adjust["score"]))
+    scored["market_adjustment"] = {
+        "market_state": market_ctx.get("state"),
+        "market_score": market_score,
+        "score_multiplier": adjust["score"],
+        "chasing_multiplier": adjust["chasing_risk"],
+        "before_adjust": orig_score,
+        "after_adjust": round(adj_score, 1),
+    }
+    scored["total_score"] = round(adj_score, 1)
+    # 등급/의견 재산정
+    ts = scored["total_score"]
+    if ts >= 90: scored["grade"], scored["final_opinion"] = "S", "강력 관심"
+    elif ts >= 80: scored["grade"], scored["final_opinion"] = "A", "관심매수"
+    elif ts >= 70: scored["grade"], scored["final_opinion"] = "B", "관찰"
+    elif ts >= 60: scored["grade"], scored["final_opinion"] = "C", "보류"
+    else: scored["grade"], scored["final_opinion"] = "D", "제외"
+
+    # 추격매수 위험도 보정 (하락장에서는 위험도 ↑, 상승장에서는 ↓)
+    chase_mult = adjust["chasing_risk"]
+    if chase_mult != 1.0:
+        levels = ["낮음", "중간", "높음", "매우 높음"]
+        cur = strat.get("chasing_risk", "낮음")
+        if cur in levels:
+            idx = levels.index(cur)
+            if chase_mult > 1.1:   # 위험 한 단계 ↑
+                idx = min(len(levels) - 1, idx + 1)
+            elif chase_mult < 0.85:  # 위험 한 단계 ↓
+                idx = max(0, idx - 1)
+            strat["chasing_risk"] = levels[idx]
+
     # 의견은 리스크 우선 원칙으로 강제 변경
     if ra.get("risk_level") == 4:
         scored["final_opinion"] = "접근 금지"
@@ -298,7 +347,7 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
     }
 
     final_comment = _final_comment(basic["stock_name"], scored["final_opinion"], pa, strat, ra)
-    one_liner = _one_liner(basic["stock_name"], scored, strat, ra, styles, adv, fin)
+    one_liner = _one_liner(basic["stock_name"], scored, strat, ra, styles, adv, fin, market_ctx)
 
     return {
         "stock_name": basic["stock_name"],
@@ -378,6 +427,7 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
         "investor_styles": styles,
         "advanced_metrics": adv,
         "market_context": market_ctx,
+        "market_adjustment": scored.get("market_adjustment"),
         "peer_comparison": peer,
         "consensus": cons,
         "candle_patterns": candles,
