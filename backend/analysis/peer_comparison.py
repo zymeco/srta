@@ -20,18 +20,19 @@ def get_peer_comparison(stock_code: str, sector: str) -> Dict[str, Any]:
         return {"available": False, "reason": "섹터 정보 없음"}
 
     def factory():
+        from concurrent.futures import ThreadPoolExecutor
         peers = get_peer_list(stock_code, sector)
         if not peers:
             return {"available": False, "reason": f"동종 업종 종목 없음 ({sector})"}
 
-        rows = []
-        # 본인 포함
-        for code in [stock_code] + peers:
+        codes = [stock_code] + peers
+
+        def fetch_one(code):
             try:
                 fund = naver_finance_provider.get_fundamentals(code) or {}
-                meta = next((m for m in STOCK_MASTER if m["stock_code"] == code), {"stock_name": code})
                 quote = naver_finance_provider.get_quote(code) or {}
-                rows.append({
+                meta = next((m for m in STOCK_MASTER if m["stock_code"] == code), {"stock_name": code})
+                return {
                     "stock_code": code,
                     "stock_name": meta.get("stock_name", code),
                     "per": fund.get("forward_per") or fund.get("per") or 0,
@@ -42,9 +43,21 @@ def get_peer_comparison(stock_code: str, sector: str) -> Dict[str, Any]:
                     "current_price": quote.get("current_price") or 0,
                     "change_rate": quote.get("change_rate") or 0,
                     "is_self": code == stock_code,
-                })
+                }
             except Exception as e:
                 print(f"[peer] {code} 실패: {e}")
+                return None
+
+        # 모든 동종 종목 병렬 조회
+        rows = []
+        with ThreadPoolExecutor(max_workers=min(8, len(codes))) as ex:
+            futures = [ex.submit(fetch_one, c) for c in codes]
+            for f in futures:
+                try:
+                    r = f.result(timeout=10)
+                    if r: rows.append(r)
+                except Exception:
+                    pass
 
         # 평균
         valid_per = [r["per"] for r in rows if r["per"] > 0]

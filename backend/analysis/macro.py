@@ -53,14 +53,21 @@ def _fetch_one(symbol):
 
 def get_macro() -> Dict[str, Any]:
     def factory():
+        from concurrent.futures import ThreadPoolExecutor
         out = {}
-        for key, info in MACRO_SYMBOLS.items():
-            d = _fetch_one(info["symbol"])
-            if d:
-                d["name"] = info["name"]
-                d["unit"] = info["unit"]
-                d["symbol"] = info["symbol"]
-                out[key] = d
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            futures = {key: ex.submit(_fetch_one, info["symbol"]) for key, info in MACRO_SYMBOLS.items()}
+            for key, f in futures.items():
+                try:
+                    d = f.result(timeout=10)
+                    if d:
+                        info = MACRO_SYMBOLS[key]
+                        d["name"] = info["name"]
+                        d["unit"] = info["unit"]
+                        d["symbol"] = info["symbol"]
+                        out[key] = d
+                except Exception:
+                    pass
         return out
     return memoize("macro_all", 600, factory) or {}
 

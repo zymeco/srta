@@ -150,15 +150,45 @@ _get_provider = get_provider
 
 
 def build_analysis(stock_code: str) -> Dict[str, Any]:
+    from concurrent.futures import ThreadPoolExecutor
     provider = get_provider()
 
+    # ===== 1단계: 종목 기본 정보 우선 (sector/market 필요) =====
     basic = provider.get_stock_basic_info(stock_code)
-    price = provider.get_price_history(stock_code)
-    fin = provider.get_financial_data(stock_code)
-    sup = provider.get_supply_data(stock_code)
-    news_raw = provider.get_news_data(stock_code)
-    risk_raw = provider.get_risk_data(stock_code)
+    sector = basic.get("sector", "")
+    market = basic.get("market", "KOSPI")
 
+    # ===== 2단계: 나머지 외부 호출을 모두 병렬로 =====
+    # 각 호출은 독립적이라 동시에 실행 가능. I/O 바운드라 ThreadPoolExecutor 효과 큼.
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        f_price   = ex.submit(provider.get_price_history, stock_code)
+        f_fin     = ex.submit(provider.get_financial_data, stock_code)
+        f_sup     = ex.submit(provider.get_supply_data, stock_code)
+        f_news    = ex.submit(provider.get_news_data, stock_code)
+        f_risk    = ex.submit(provider.get_risk_data, stock_code)
+        f_market  = ex.submit(market_context.get_market_context, market)
+        f_peer    = ex.submit(peer_comparison.get_peer_comparison, stock_code, sector)
+        f_cons    = ex.submit(consensus.get_consensus, stock_code)
+        f_macro   = ex.submit(macro.get_macro)
+
+        # 결과 수집 (예외 시 안전 기본값)
+        def _safe(future, default):
+            try: return future.result(timeout=20)
+            except Exception as e:
+                print(f"[parallel] 호출 실패: {e}")
+                return default
+
+        price     = _safe(f_price, {"prices": [], "volumes": []})
+        fin       = _safe(f_fin, {})
+        sup       = _safe(f_sup, {"series": []})
+        news_raw  = _safe(f_news, {})
+        risk_raw  = _safe(f_risk, {})
+        market_ctx = _safe(f_market, {"state": "정보부족", "score": 50})
+        peer       = _safe(f_peer, {"available": False})
+        cons       = _safe(f_cons, {"available": False})
+        macro_data = _safe(f_macro, {})
+
+    # ===== 3단계: 순수 계산 (외부 호출 없음, 빠름) =====
     fa = financial_analyzer.analyze(fin)
     ga = growth_analyzer.analyze(fin)
     va = valuation_analyzer.analyze(fin)
@@ -171,37 +201,16 @@ def build_analysis(stock_code: str) -> Dict[str, Any]:
     scored = score_engine.compute(
         fa, ga, va, ta, vola, sa, na, ra,
         market_cap_type=basic.get("market_cap_type", "mid"),
-        sector=basic.get("sector", ""),
+        sector=sector,
         themes=(news_raw.get("themes") if isinstance(news_raw, dict) else []) or [],
         financial_raw=fin,
     )
 
-    # 고급 지표 (MDD/ATR/OBV/PEG/모멘텀/변동성)
     adv = advanced_metrics.compute_advanced(price, basic, fin)
-
-    # 투자 스타일 점수 (그레이엄/버핏/린치/모멘텀)
     styles = investor_style.compute_all_styles(fin, ta, vola, adv, sup)
-
-    # 시장 컨텍스트
-    market_ctx = market_context.get_market_context(basic.get("market", "KOSPI"))
-
-    # 동종 업종 비교
-    peer = peer_comparison.get_peer_comparison(stock_code, basic.get("sector", ""))
-
-    # 증권사 컨센서스
-    cons = consensus.get_consensus(stock_code)
-
-    # 캔들 패턴
     candles = candle_patterns.analyze(price)
-
-    # 백테스트
     bt = backtest.compute(price)
-
-    # 매크로 지표 (자주 안 바뀌니 캐시 됨)
-    macro_data = macro.get_macro()
     macro_text = macro.get_macro_context_text(macro_data)
-
-    # 실적 캘린더
     earnings_info = earnings.get_earnings_info(stock_code)
 
     pa = position_analyzer.analyze(basic, ta, vola, sa, fin, na, ra)
